@@ -4,6 +4,7 @@
 
 #include "webserver.h"
 //#include <arpa/inet.h>
+#include "httphandle.h"
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
@@ -14,14 +15,24 @@
 
 using std::string;
 
+void Work(int connfd) {
+  HttpHandle http_handle{};
+  http_handle.Run(connfd);
+}
+
 void WebServer::Init(int port) {
   listen_port_ = port;
+  // 初始化线程池
+  thread_pool_ = ThreadPool::GetInstance(30);
   // 创建监听socket
   listen_fd_ = socket(AF_INET, SOCK_STREAM, 0);
   if (listen_fd_ < 0) {
     perror("socket listen error");
     exit(-1);
   }
+  // 立即释放端口
+  int optval = 1;
+  setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
   // 设置非阻塞模式
   fcntl(listen_fd_, F_SETFL, fcntl(listen_fd_, F_GETFL, 0) | O_NONBLOCK);
   // 绑定IP和端口
@@ -79,29 +90,7 @@ void WebServer::Start() {
         // 设置非阻塞模式
         fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL, 0) | O_NONBLOCK);
         // 添加连接socket到epoll
-        epoll_event conn_ev{};
-        conn_ev.data.fd = connfd;
-        conn_ev.events = EPOLLIN | EPOLLET;
-        if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, connfd, &conn_ev) < 0) {
-          perror("epoll_ctl error");
-          exit(-1);
-        }
-
-      } else if (events[i].events & EPOLLIN) {// 处理数据
-        char buf[1024] = {0};
-        int len = recv(sockfd, buf, sizeof(buf), 0);
-        if (len <= 0) {// 连接已经关闭
-          close(sockfd);
-          continue;
-        }
-        // 处理请求
-        string req(buf);
-        string resp = "HTTP/1.1 200 OK\r\n"
-                      "Content-Type: text/html; charset=UTF-8\r\n\r\n"
-                      "<html><head><title>Hello World</title></head>"
-                      "<body><h1>Hello World</h1></body>"
-                      "</html>";
-        send(sockfd, resp.c_str(), resp.length(), 0);
+        thread_pool_->EnQueue(Work, connfd);
       }
     }
   }

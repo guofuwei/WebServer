@@ -4,6 +4,7 @@
 
 #ifndef WEBSERVER_WEBSERVER_H
 #define WEBSERVER_WEBSERVER_H
+#include "threadpool.h"
 #include <netinet/in.h>
 
 class WebServer {
@@ -17,6 +18,7 @@ private:
   int listen_fd_;
   sockaddr_in server_addr_{};
   int epoll_fd_;
+  ThreadPool *thread_pool_;
 
 public:
   inline static WebServer *GetInstance(int port = 3000) {
