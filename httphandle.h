@@ -5,6 +5,7 @@
 #ifndef WEBSERVER_HTTPHANDLE_H
 #define WEBSERVER_HTTPHANDLE_H
 
+#include <memory>
 #include <netinet/in.h>
 #include <string>
 #include <sys/epoll.h>
@@ -30,7 +31,7 @@ private:
   struct epoll_event sub_events[SUB_MAX_EVENTS];
   int client_fd_;
   sockaddr_in client_addr_;
-  char *client_ip_;
+  std::unique_ptr<char> client_ip_;
   int client_port_;
 
   bool is_stop_;

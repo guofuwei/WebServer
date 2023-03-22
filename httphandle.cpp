@@ -15,8 +15,8 @@
 const std::string FILE_NAME = "httphandle.cpp";
 
 void HttpHandle::ParseClientAddr() {
-  client_ip_ = new char[INET_ADDRSTRLEN];
-  inet_ntop(AF_INET, &(client_addr_.sin_addr), client_ip_, INET_ADDRSTRLEN);
+  client_ip_.reset(new char[INET_ADDRSTRLEN]);
+  inet_ntop(AF_INET, &(client_addr_.sin_addr), client_ip_.get(), INET_ADDRSTRLEN);
   client_port_ = ntohs(client_addr_.sin_port);
 }
 
@@ -39,9 +39,9 @@ void HttpHandle::Run(int client_fd, sockaddr_in client_addr) {
   }
 
   std::stringstream ss;
-  ss << client_ip_ << ":" << client_port_ << " "
-     << "join";
+  ss << client_ip_.get() << ":" << client_port_ << " join";
   Logger::GetInstance()->Log(LOG_LEVEL::INFO, ss.str(), FILE_NAME, "Run");
+  ss.str(std::string());
   is_stop_ = false;
   while (!is_stop_) {
     int nfds = epoll_wait(sub_epoll_fd_, sub_events, SUB_MAX_EVENTS, -1);
@@ -60,9 +60,9 @@ void HttpHandle::Run(int client_fd, sockaddr_in client_addr) {
       }
     }
   }
-  ss << client_ip_ << ":" << client_port_ << " "
-     << "leave";
+  ss << client_ip_.get() << ":" << client_port_ << " leave";
   Logger::GetInstance()->Log(LOG_LEVEL::INFO, ss.str(), FILE_NAME, "Run");
+  ss.str(std::string());
 }
 
 void HttpHandle::CloseConnection() {

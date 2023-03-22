@@ -4,14 +4,19 @@
 
 #ifndef WEBSERVER_LOGGER_H
 #define WEBSERVER_LOGGER_H
+#include <condition_variable>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
+#include <queue>
 #include <sstream>
+#include <thread>
+
+
 
 enum class LOG_LEVEL {
-
   TRACE,
   DEBUG,
   INFO,
@@ -32,10 +37,17 @@ public:
 private:
   explicit Logger(std::string filename);
   ~Logger() = default;
+  [[noreturn]] void LogWorker();
+
   std::string filename_;
   LOG_LEVEL log_level_;
   std::time_t now_{std::time(nullptr)};
   std::ofstream file_stream_;
+  std::mutex log_mutex_;
+
+  std::queue<std::string> log_buffer_;
+  std::condition_variable cv;
+  std::thread log_thread_;
 };
 
 
