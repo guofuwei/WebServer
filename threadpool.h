@@ -11,6 +11,7 @@
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <utility>
 #include <vector>
 
 
@@ -39,10 +40,11 @@ public:
     return &instance_;
   }
 
-  void EnQueue(std::function<void(int)> func, int arg) {
+  template<class T, typename... Args>
+  void EnQueue(T &&task, Args &&...args) {
     {
       std::unique_lock<std::mutex> lock(queue_mutex_);
-      auto f = [=]() { func(arg); };
+      auto f = std::bind(std::forward<T>(task), std::forward<Args>(args)...);
       tasks_queue_.push(f);
     }
     condition_.notify_one();

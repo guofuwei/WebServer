@@ -3,14 +3,27 @@
 //
 
 #include "httphandle.h"
+#include "logger.h"
+#include <arpa/inet.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <string>
 #include <unistd.h>
 
-void HttpHandle::Run(int client_fd) {
+const std::string FILE_NAME = "httphandle.cpp";
+
+void HttpHandle::ParseClientAddr() {
+  client_ip_ = new char[INET_ADDRSTRLEN];
+  inet_ntop(AF_INET, &(client_addr_.sin_addr), client_ip_, INET_ADDRSTRLEN);
+  client_port_ = ntohs(client_addr_.sin_port);
+}
+
+void HttpHandle::Run(int client_fd, sockaddr_in client_addr) {
   client_fd_ = client_fd;
+  client_addr_ = client_addr;
+  ParseClientAddr();
   sub_epoll_fd_ = epoll_create(1);
   if (sub_epoll_fd_ < 0) {
     perror("epoll_create error");
@@ -24,6 +37,11 @@ void HttpHandle::Run(int client_fd) {
     perror("epoll_ctl EPOLL_CTL_ADD connfd");
     return;
   }
+
+  std::stringstream ss;
+  ss << client_ip_ << ":" << client_port_ << " "
+     << "join";
+  Logger::GetInstance()->Log(LOG_LEVEL::INFO, ss.str(), FILE_NAME, "Run");
   is_stop_ = false;
   while (!is_stop_) {
     int nfds = epoll_wait(sub_epoll_fd_, sub_events, SUB_MAX_EVENTS, -1);
@@ -33,15 +51,18 @@ void HttpHandle::Run(int client_fd) {
     }
     // 处理事件
     for (int i = 0; i < nfds; i++) {
-      if ((sub_events[i].events & EPOLLERR) ||
-          (sub_events[i].events & EPOLLHUP) ||
-          !(sub_events[i].events & EPOLLIN)) {
+      if (sub_events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
         CloseConnection();
-      } else {
+      } else if (sub_events[i].events & EPOLLIN) {
         HandleData();
+      } else {
+        CloseConnection();
       }
     }
   }
+  ss << client_ip_ << ":" << client_port_ << " "
+     << "leave";
+  Logger::GetInstance()->Log(LOG_LEVEL::INFO, ss.str(), FILE_NAME, "Run");
 }
 
 void HttpHandle::CloseConnection() {

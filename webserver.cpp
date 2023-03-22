@@ -5,19 +5,19 @@
 #include "webserver.h"
 //#include <arpa/inet.h>
 #include "httphandle.h"
+#include "logger.h"
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
 #include <netinet/in.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
-#include <unistd.h>
 
 using std::string;
 
-void Work(int connfd) {
+void Work(int connfd, sockaddr_in clientaddr) {
   HttpHandle http_handle{};
-  http_handle.Run(connfd);
+  http_handle.Run(connfd, clientaddr);
 }
 
 void WebServer::Init(int port) {
@@ -65,7 +65,23 @@ void WebServer::Init(int port) {
   }
 }
 
+void WebServer::HandleNewConnection() {
+  // 想把客户socket存储起来
+  sockaddr_in clientaddr{};
+  socklen_t clientaddrlen = sizeof(clientaddr);
+  int connfd = accept(listen_fd_, (sockaddr *) &clientaddr, &clientaddrlen);
+  if (connfd < 0) {
+    perror("accept error");
+    exit(-1);
+  }
+  // 设置非阻塞模式
+  fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL, 0) | O_NONBLOCK);
+  // 添加连接socket到epoll
+  thread_pool_->EnQueue(Work, connfd, clientaddr);
+}
+
 void WebServer::Start() {
+  Logger::GetInstance()->Log(LOG_LEVEL::INFO, "Server Start", "webserver.cpp", "Start");
   while (true) {
     epoll_event events[1024];
     int nfds = epoll_wait(epoll_fd_, events, 1024, -1);
@@ -79,18 +95,7 @@ void WebServer::Start() {
       int sockfd = events[i].data.fd;
       // 接收请求并处理
       if (sockfd == listen_fd_) {
-        // 想把客户socket存储起来
-        sockaddr_in clientaddr{};
-        socklen_t clientaddrlen = sizeof(clientaddr);
-        int connfd = accept(listen_fd_, (sockaddr *) &clientaddr, &clientaddrlen);
-        if (connfd < 0) {
-          perror("accept error");
-          exit(-1);
-        }
-        // 设置非阻塞模式
-        fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL, 0) | O_NONBLOCK);
-        // 添加连接socket到epoll
-        thread_pool_->EnQueue(Work, connfd);
+        HandleNewConnection();
       }
     }
   }

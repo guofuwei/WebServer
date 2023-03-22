@@ -6,6 +6,7 @@
 #define WEBSERVER_HTTPHANDLE_H
 
 #include <netinet/in.h>
+#include <string>
 #include <sys/epoll.h>
 #define SUB_MAX_EVENTS 10
 
@@ -14,9 +15,10 @@ public:
   HttpHandle() = default;
   ~HttpHandle() = default;
 
-  void Run(int);
+  void Run(int, sockaddr_in);
 
 private:
+  void ParseClientAddr();
   void HandleData();
   void ReadHandle();
   void WriteHandle();
@@ -27,6 +29,9 @@ private:
   struct epoll_event sub_ev_;
   struct epoll_event sub_events[SUB_MAX_EVENTS];
   int client_fd_;
+  sockaddr_in client_addr_;
+  char *client_ip_;
+  int client_port_;
 
   bool is_stop_;
 };
