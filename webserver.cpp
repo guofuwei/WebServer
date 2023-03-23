@@ -12,6 +12,7 @@
 #include <netinet/in.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 using std::string;
 
@@ -20,8 +21,8 @@ void Work(int connfd, sockaddr_in clientaddr) {
   http_handle.Run(connfd, clientaddr);
 }
 
-void WebServer::Init(int port) {
-  listen_port_ = port;
+WebServer::WebServer(int port) : listen_port_(port) {
+  http_handle_queue_ = std::vector<HttpHandle>(1024);
   // 初始化线程池
   thread_pool_ = ThreadPool::GetInstance(30);
   // 创建监听socket
@@ -77,26 +78,39 @@ void WebServer::HandleNewConnection() {
   // 设置非阻塞模式
   fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL, 0) | O_NONBLOCK);
   // 添加连接socket到epoll
-  thread_pool_->EnQueue(Work, connfd, clientaddr);
+  thread_pool_->EnQueue(&HttpHandle::Run, &http_handle_queue_[http_count_++], connfd, clientaddr);
 }
 
 void WebServer::Start() {
   Logger::GetInstance()->Log(LOG_LEVEL::INFO, "Server Start", "webserver.cpp", "Start");
-  while (true) {
-    epoll_event events[1024];
-    int nfds = epoll_wait(epoll_fd_, events, 1024, -1);
-    if (nfds < 0) {
-      perror("epoll_wait error");
-      exit(-1);
-    }
-
-    // 处理事件
-    for (int i = 0; i < nfds; i++) {
-      int sockfd = events[i].data.fd;
-      // 接收请求并处理
-      if (sockfd == listen_fd_) {
-        HandleNewConnection();
+  try {
+    while (!is_stop_) {
+      epoll_event events[1024];
+      int nfds = epoll_wait(epoll_fd_, events, 1024, -1);
+      if (nfds < 0) {
+        if (errno == EINTR) {
+          exit(0);
+        }
+        perror("epoll_wait error");
+        exit(-1);
+      }
+      // 处理事件
+      for (int i = 0; i < nfds; i++) {
+        int sockfd = events[i].data.fd;
+        // 接收请求并处理
+        if (sockfd == listen_fd_) {
+          HandleNewConnection();
+        }
       }
     }
+  } catch (std::exception &e) {
+    std::cerr << "Exception caught: " << e.what() << std::endl;
   }
+}
+
+void WebServer::Stop() {
+  is_stop_ = true;
+  epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, listen_fd_, nullptr);
+  close(listen_fd_);
+  close(epoll_fd_);
 }

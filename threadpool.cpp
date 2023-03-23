@@ -3,12 +3,13 @@
 //
 
 #include "threadpool.h"
+#include <iostream>
 
 
 ThreadPool::ThreadPool(size_t thread_count) : is_stop_(false) {
   for (size_t i = 0; i < thread_count; i++) {
-    workers_.emplace_back([this] {
-      for (;;) {
+    workers_.emplace_back([this, i] {
+      while (true) {
         Task task;
         {
           std::unique_lock<std::mutex> lock(this->queue_mutex_);

@@ -9,14 +9,20 @@
 #include <netinet/in.h>
 #include <string>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #define SUB_MAX_EVENTS 10
 
 class HttpHandle {
 public:
-  HttpHandle() = default;
-  ~HttpHandle() = default;
+  HttpHandle() {
+    stop_eventfd_ = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+  };
+  ~HttpHandle() {
+    Stop();
+  };
 
   void Run(int, sockaddr_in);
+  void Stop() const;
 
 private:
   void ParseClientAddr();
@@ -26,15 +32,16 @@ private:
   void CloseConnection();
 
 
-  int sub_epoll_fd_;
-  struct epoll_event sub_ev_;
-  struct epoll_event sub_events[SUB_MAX_EVENTS];
-  int client_fd_;
-  sockaddr_in client_addr_;
+  int sub_epoll_fd_{};
+  int stop_eventfd_;
+  struct epoll_event sub_ev_ {};
+  struct epoll_event sub_events[SUB_MAX_EVENTS]{};
+  int client_fd_{};
+  sockaddr_in client_addr_{};
   std::unique_ptr<char> client_ip_;
-  int client_port_;
+  int client_port_{};
 
-  bool is_stop_;
+  bool is_stop_{};
 };
 
 

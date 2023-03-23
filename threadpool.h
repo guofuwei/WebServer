@@ -24,10 +24,13 @@ private:
 
   std::mutex queue_mutex_;
   std::condition_variable condition_;
-  std::atomic<bool> is_stop_;
+  std::atomic<bool> is_stop_{false};
   explicit ThreadPool(size_t thread_count);
   ~ThreadPool() {
-    is_stop_ = true;
+    {
+      std::unique_lock<std::mutex> lock(queue_mutex_);
+      is_stop_ = true;
+    }
     condition_.notify_all();
     for (std::thread &worker: workers_) {
       worker.join();
@@ -42,6 +45,9 @@ public:
 
   template<class T, typename... Args>
   void EnQueue(T &&task, Args &&...args) {
+    if (is_stop_) {
+      throw std::runtime_error("ThreadPool has been stopped.");
+    }
     {
       std::unique_lock<std::mutex> lock(queue_mutex_);
       auto f = std::bind(std::forward<T>(task), std::forward<Args>(args)...);

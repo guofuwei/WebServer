@@ -15,7 +15,6 @@
 #include <thread>
 
 
-
 enum class LOG_LEVEL {
   TRACE,
   DEBUG,
@@ -33,21 +32,25 @@ public:
   void Log(LOG_LEVEL level, const std::string &message,
            const std::string &file = "",
            const std::string &func = "");
+  void Stop();
 
 private:
   explicit Logger(std::string filename);
-  ~Logger() = default;
-  [[noreturn]] void LogWorker();
+  ~Logger() {
+    Stop();
+  };
+  void LogWorker();
 
   std::string filename_;
   LOG_LEVEL log_level_;
   std::time_t now_{std::time(nullptr)};
   std::ofstream file_stream_;
-  std::mutex log_mutex_;
 
   std::queue<std::string> log_buffer_;
-  std::condition_variable cv;
+  std::mutex log_mutex_;
+  std::condition_variable cv_;
   std::thread log_thread_;
+  bool is_stop_{false};
 };
 
 
