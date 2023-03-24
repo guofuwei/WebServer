@@ -3,7 +3,6 @@
 //
 
 #include "webserver.h"
-//#include <arpa/inet.h>
 #include "httphandle.h"
 #include "logger.h"
 #include <cstring>
@@ -16,19 +15,19 @@
 
 using std::string;
 
-void Work(int connfd, sockaddr_in clientaddr) {
-  HttpHandle http_handle{};
-  http_handle.Run(connfd, clientaddr);
-}
 
-WebServer::WebServer(int port) : listen_port_(port) {
-  http_handle_queue_ = std::vector<HttpHandle>(1024);
+WebServer::WebServer() {
+  // 初始化端口
+  listen_port_ = webserverconfig::kPort;
+  // 初始化子连接
+  http_handle_queue_ = std::vector<HttpHandle>(webserverconfig::kMaxConnections);
   // 初始化线程池
-  thread_pool_ = ThreadPool::GetInstance(30);
+  thread_pool_ = ThreadPool::GetInstance();
   // 创建监听socket
   listen_fd_ = socket(AF_INET, SOCK_STREAM, 0);
   if (listen_fd_ < 0) {
-    perror("socket listen error");
+    // 记录日志
+    Logger::GetInstance()->Log(LOG_LEVEL::ERROR, "create listen socket error", "webserver.cpp", "WebServer");
     exit(-1);
   }
   // 立即释放端口
@@ -42,18 +41,21 @@ WebServer::WebServer(int port) : listen_port_(port) {
   server_addr_.sin_addr.s_addr = htonl(INADDR_ANY);
   server_addr_.sin_port = htons(listen_port_);
   if (bind(listen_fd_, (sockaddr *) &server_addr_, sizeof(server_addr_)) < 0) {
-    perror("bind error");
+    // 记录日志
+    Logger::GetInstance()->Log(LOG_LEVEL::ERROR, "bind error", "webserver.cpp", "WebServer");
     exit(-1);
   }
   // 监听端口
   if (listen(listen_fd_, 10) < 0) {
-    perror("listen error");
+    // 记录日志
+    Logger::GetInstance()->Log(LOG_LEVEL::ERROR, "listen error", "webserver.cpp", "WebServer");
     exit(-1);
   }
   // 创建epoll
-  epoll_fd_ = epoll_create(1024);
+  epoll_fd_ = epoll_create(1);
   if (epoll_fd_ < 0) {
-    perror("epoll_create error");
+    // 记录日志
+    Logger::GetInstance()->Log(LOG_LEVEL::ERROR, "epoll_create error", "webserver.cpp", "WebServer");
     exit(-1);
   }
   // 添加监听socket到epoll
@@ -61,7 +63,8 @@ WebServer::WebServer(int port) : listen_port_(port) {
   ev.data.fd = listen_fd_;
   ev.events = EPOLLIN | EPOLLET;
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, listen_fd_, &ev) < 0) {
-    perror("epoll_ctl error");
+    // 记录日志
+    Logger::GetInstance()->Log(LOG_LEVEL::ERROR, "epoll_ctl EPOLL_CTL_ADD listen_fd_", "webserver.cpp", "WebServer");
     exit(-1);
   }
 }
@@ -72,26 +75,33 @@ void WebServer::HandleNewConnection() {
   socklen_t clientaddrlen = sizeof(clientaddr);
   int connfd = accept(listen_fd_, (sockaddr *) &clientaddr, &clientaddrlen);
   if (connfd < 0) {
-    perror("accept error");
-    exit(-1);
+    // 记录日志
+    Logger::GetInstance()->Log(LOG_LEVEL::WARN, "accept error", "webserver.cpp", "HandleNewConnection");
+    return;
+  } else if (connfd >= webserverconfig::kMaxConnections) {
+    close(connfd);
+    // 记录日志
+    Logger::GetInstance()->Log(LOG_LEVEL::WARN, "Too many connections", "webserver.cpp", "HandleNewConnection");
+    return;
   }
   // 设置非阻塞模式
   fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL, 0) | O_NONBLOCK);
   // 添加连接socket到epoll
-  thread_pool_->EnQueue(&HttpHandle::Run, &http_handle_queue_[http_count_++], connfd, clientaddr);
+  thread_pool_->EnQueue(&HttpHandle::Run, &http_handle_queue_[connfd], connfd, clientaddr);
 }
 
 void WebServer::Start() {
   Logger::GetInstance()->Log(LOG_LEVEL::INFO, "Server Start", "webserver.cpp", "Start");
   try {
     while (!is_stop_) {
-      epoll_event events[1024];
-      int nfds = epoll_wait(epoll_fd_, events, 1024, -1);
+      epoll_event events[webserverconfig::kMaxEvents];
+      int nfds = epoll_wait(epoll_fd_, events, webserverconfig::kMaxEvents, -1);
       if (nfds < 0) {
         if (errno == EINTR) {
-          exit(0);
+          continue;
         }
-        perror("epoll_wait error");
+        // 记录日志
+        Logger::GetInstance()->Log(LOG_LEVEL::ERROR, "epoll_wait error", "webserver.cpp", "Start");
         exit(-1);
       }
       // 处理事件
@@ -104,7 +114,8 @@ void WebServer::Start() {
       }
     }
   } catch (std::exception &e) {
-    std::cerr << "Exception caught: " << e.what() << std::endl;
+    // 记录日志
+    Logger::GetInstance()->Log(LOG_LEVEL::ERROR, "Exception caught", "webserver.cpp", "Start");
   }
 }
 

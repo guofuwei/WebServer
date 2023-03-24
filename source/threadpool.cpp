@@ -3,12 +3,13 @@
 //
 
 #include "threadpool.h"
+#include "config.h"
 #include <iostream>
 
 
-ThreadPool::ThreadPool(size_t thread_count) : is_stop_(false) {
-  for (size_t i = 0; i < thread_count; i++) {
-    workers_.emplace_back([this, i] {
+ThreadPool::ThreadPool() : is_stop_(false) {
+  for (size_t i = 0; i < webserverconfig::kThreadNum; i++) {
+    workers_.emplace_back([this] {
       while (true) {
         Task task;
         {
@@ -25,5 +26,17 @@ ThreadPool::ThreadPool(size_t thread_count) : is_stop_(false) {
         task();
       }
     });
+  }
+}
+
+
+ThreadPool::~ThreadPool() {
+  {
+    std::unique_lock<std::mutex> lock(queue_mutex_);
+    is_stop_ = true;
+  }
+  condition_.notify_all();
+  for (std::thread &worker: workers_) {
+    worker.join();
   }
 }

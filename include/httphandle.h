@@ -5,12 +5,13 @@
 #ifndef WEBSERVER_HTTPHANDLE_H
 #define WEBSERVER_HTTPHANDLE_H
 
+#include "../config.h"
 #include <memory>
 #include <netinet/in.h>
 #include <string>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
-#define SUB_MAX_EVENTS 10
+
 
 class HttpHandle {
 public:
@@ -34,8 +35,7 @@ private:
 
   int sub_epoll_fd_{};
   int stop_eventfd_;
-  struct epoll_event sub_ev_ {};
-  struct epoll_event sub_events[SUB_MAX_EVENTS]{};
+  epoll_event sub_events[webserverconfig::kMaxEvents]{};
   int client_fd_{};
   sockaddr_in client_addr_{};
   std::unique_ptr<char> client_ip_;

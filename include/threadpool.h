@@ -25,21 +25,12 @@ private:
   std::mutex queue_mutex_;
   std::condition_variable condition_;
   std::atomic<bool> is_stop_{false};
-  explicit ThreadPool(size_t thread_count);
-  ~ThreadPool() {
-    {
-      std::unique_lock<std::mutex> lock(queue_mutex_);
-      is_stop_ = true;
-    }
-    condition_.notify_all();
-    for (std::thread &worker: workers_) {
-      worker.join();
-    }
-  }
+  ThreadPool(); // NOLINT
+  ~ThreadPool();// NOLINT
 
 public:
-  static ThreadPool *GetInstance(size_t thread_count = 10) {
-    static ThreadPool instance_(thread_count);
+  static ThreadPool *GetInstance() {
+    static ThreadPool instance_;
     return &instance_;
   }
 

@@ -11,7 +11,7 @@
 
 class WebServer {
 private:
-  explicit WebServer(int port);
+  explicit WebServer();
   ~WebServer() {
     Stop();
   };
@@ -28,8 +28,8 @@ private:
   int http_count_{0};
 
 public:
-  static WebServer *GetInstance(int port = 3000) {
-    static WebServer web_server_(port);
+  static WebServer *GetInstance() {
+    static WebServer web_server_;
     return &web_server_;
   }
   void Start();
