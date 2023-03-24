@@ -19,20 +19,21 @@ class ThreadPool {
   using Task = std::function<void()>;
 
 private:
+  ThreadPool();
+  ~ThreadPool();
   std::vector<std::thread> workers_;
   std::queue<Task> tasks_queue_;
 
   std::mutex queue_mutex_;
   std::condition_variable condition_;
   std::atomic<bool> is_stop_{false};
-  ThreadPool(); // NOLINT
-  ~ThreadPool();// NOLINT
+
 
 public:
-  static ThreadPool *GetInstance() {
-    static ThreadPool instance_;
-    return &instance_;
-  }
+  static ThreadPool *GetInstance();
+  // 禁用拷贝和移动构造函数
+  ThreadPool(const ThreadPool &) = delete;
+  ThreadPool(ThreadPool &&) = delete;
 
   template<class T, typename... Args>
   void EnQueue(T &&task, Args &&...args) {

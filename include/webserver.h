@@ -11,7 +11,7 @@
 
 class WebServer {
 private:
-  explicit WebServer();
+  WebServer();
   ~WebServer() {
     Stop();
   };

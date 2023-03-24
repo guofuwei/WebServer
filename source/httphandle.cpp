@@ -6,7 +6,6 @@
 #include "logger.h"
 #include <arpa/inet.h>
 #include <atomic>
-#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <string>

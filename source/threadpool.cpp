@@ -4,10 +4,9 @@
 
 #include "threadpool.h"
 #include "config.h"
-#include <iostream>
 
 
-ThreadPool::ThreadPool() : is_stop_(false) {
+ThreadPool::ThreadPool() {
   for (size_t i = 0; i < webserverconfig::kThreadNum; i++) {
     workers_.emplace_back([this] {
       while (true) {
@@ -39,4 +38,9 @@ ThreadPool::~ThreadPool() {
   for (std::thread &worker: workers_) {
     worker.join();
   }
+}
+
+ThreadPool *ThreadPool::GetInstance() {
+  static ThreadPool instance_{};
+  return &instance_;
 }
